@@ -42,8 +42,6 @@ table(filter(app, is.na(children))$bad)
 app$children[is.na(app$children)] <- 0
 
 
-
-
 table(app$bad)
 #we can there is clients much more clients with bad=0 (9745), than with bad=1 (255).
 255/9745
@@ -212,7 +210,7 @@ train_model<-glm(bad ~ sexMale + divorced_single + children + self_empl + rent_1
 summary(train_model)
 
 
-train_model1<-glm(bad ~   divorced_single + children + self_empl + rent_1 + debt_1 + overdue_1, family=binomial
+train_model1<-glm(bad ~ sexMale +  divorced_single + children + self_empl + rent_1 + debt_1 + overdue_1, family=binomial
                   , data=train)
 summary(train_model1)
 
@@ -242,11 +240,11 @@ train_lr <- mutate(train_lr, bad_predicted = ifelse(p<=0.04,0,1))
 # Calculate the model's accuracy
 mean(train_lr$bad == train_lr$bad_predicted)
 table(ifelse(train_lr$bad==1,'Default True','Default False'), train_lr$bad_predicted)
-# Sensitivity 0.4655172 - TruePositive / (TruePositive + FalseNegative)
-54/(62+54)
+# Sensitivity 0.4568966 - TruePositive / (TruePositive + FalseNegative)
+53/(63+53)
 
-#Specificity 0.8612303 - TrueNegative / (FalsePositive + TrueNegative)
-4214/(4214+679)
+#Specificity 0.8657265 - TrueNegative / (FalsePositive + TrueNegative)
+4236  /(4236+657)
 
 
 install.packages("ROCR")
@@ -265,21 +263,24 @@ plot(ROCRperf, colorize=TRUE, print.cutoffs.at=seq(0.01,0.09,by=0.01), text.adj=
 train_lr1 <- mutate(train_lr, bad_predicted = ifelse(p<=0.02,0,1))
 
 # Calculate the model's accuracy
-mean(train_lr1$bad == train_lr1$bad_predicted) # 0.6013857
+mean(train_lr1$bad == train_lr1$bad_predicted) # 0.6412458
 table(ifelse(train_lr1$bad==1,'Default True','Default False'), train_lr1$bad_predicted)
-# Sensitivity 0.7672414 - TruePositive / (TruePositive + FalseNegative)
-89/(27   +89)
+# Sensitivity 0.7758621 - TruePositive / (TruePositive + FalseNegative)
+90/(26+90)
 
-#Specificity 0.620887 - TrueNegative / (FalsePositive + TrueNegative)
-3038 /(3038 +1855)
+#Specificity 0.6380544 - TrueNegative / (FalsePositive + TrueNegative)
+3122  /(3122 +1771)
 
 
 
 ######## test model ########
 test_lr <- mutate(test, p = predict(train_model1, type = "response",newdata = test))
 test_lr$p <- predict(train_model1, type = "response", newdata = test)
+
 summary(test_lr$p)
-summary(test_lr$p)
+summary(train_lr$p)
+
+
 
 p_class_test <-cut(test_lr$p, 5)
 merge(aggregate(bad ~ p_class_test, data = test_lr,function(x) c(length = length(x), sum = sum(x)))
@@ -288,14 +289,14 @@ merge(aggregate(bad ~ p_class_test, data = test_lr,function(x) c(length = length
 
 test_lr <- mutate(test_lr, bad_predicted = ifelse(p<=0.02,0,1))
 # Calculate the model's accuracy
-mean(test_lr$bad == test_lr$bad_predicted) #0.635634
+mean(test_lr$bad == test_lr$bad_predicted) #0.6494783
 table(ifelse(test_lr$bad==1,'Default True','Default False'), test_lr$bad_predicted)
 
-# Sensitivity 0.7769784 - TruePositive / (TruePositive + FalseNegative)
-108/(31+108)
+# Sensitivity 0.7482014 - TruePositive / (TruePositive + FalseNegative)
+104/(35+104)
 
-#Specificity 0.6315789 - TrueNegative / (FalsePositive + TrueNegative)
-3060  /(3060 +1785)
+#Specificity 0.646646- TrueNegative / (FalsePositive + TrueNegative)
+3133   /(3133  +1712)
 
 
 ####################################################################33

@@ -1,11 +1,17 @@
-###### random sample split ###### 
+###### random sample split ######
+library("rstudioapi")                                 # Load rstudioapi package
+setwd(dirname(getActiveDocumentContext()$path))       # Set working directory to source file location
+
+install.packages("tidyverse")
+library("readr")
+library("tidyverse")
 
 
 ##### Splitting sample ######
 set.seed(123)
 
 #Chose random numbers from 1 to number of rows of gl
-index <- sample(1:nrow(df2), round(nrow(df2) * 0.65)) 
+index <- sample(1:nrow(df2), round(nrow(df2) * 0.65))
 
 train <- df2[index, ]
 test  <- df2[-index, ]
@@ -55,7 +61,7 @@ train_lr <- mutate(train_lr, bad_predicted = ifelse(p<=0.04,0,1))
 mean(train_lr$bad == train_lr$bad_predicted)#0.8089299
 table(ifelse(train_lr$bad==1,'Default True','Default False'), train_lr$bad_predicted)
 # Sensitivity 0.5416667 - TruePositive / (TruePositive + FalseNegative)
-91/(77+91) 
+91/(77+91)
 
 #Specificity 0.8160266 - TrueNegative / (FalsePositive + TrueNegative)
 5163 /(5163+1164)
