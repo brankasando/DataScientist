@@ -13,8 +13,9 @@ glimpse(app)
 
 #get duplicated id, if any
 dupl_id<-app$id[duplicated(app$id)]
-dupl_id
+glimpse(dupl_id)
 # -> 436 id which are duplicated, but we don't know how many times, nor if other columns are duplicated as well
+
 dupl_values<-filter(app, id  %in%  dupl_id)
 glimpse(dupl_values)
 # -> it seems that only column income is different for each id
@@ -45,35 +46,46 @@ app$children[is.na(app$children)] <- 0
 
 table(app$bad)
 #we can there is clients much more clients with bad=0 (9745), than with bad=1 (255).
+255/9745
 
 #not much difference among woman and man
 table(app$sex)
 aggregate(bad ~ sex, data = app, mean)
+#transform sex
+app<-mutate(app, sexMale = as.factor(ifelse(sex == 'male' ,1,0)))
 
 #divorced and single people has more tendency to default
 aggregate(bad ~ family, data = app, mean)
 
+app<-mutate(app, divorced_single = as.factor(ifelse(family == 'divorced' |family == 'single' ,1,0)))
+
+
 #people who are renting their apartment has more tendency to default
 aggregate(bad ~ rent, data = app, mean)
+app$rent_1 <-as.factor(ifelse(app$rent, 1, 0))
+
 
 #self-employed has more tendency to default
 aggregate(bad ~ employment, data = app, mean)
+app<-mutate(app, self_empl = as.factor(ifelse(employment == 'self-employed',1,0)))
 
 #not clear correlation between education and default
 aggregate(bad ~ education, data = app, mean)
+app$education <-as.factor(app$education)
 
 #to check if there is outliers in amount or income
 
+par(mfrow = c(2, 2))
 hist(app$income)
 boxplot(app$income)
-
 hist(app$amount)
 boxplot(app$amount)
+par(mfrow = c(1, 1))
+
 
 ggplot(app, aes(income, amount)) +
   geom_point() +
-  ggtitle("Gaph1: Correlation between Income and Life Amonut of credit")
-
+  ggtitle("Gaph1: Correlation between Income and Amonut of credit")
 
 ggplot(app,aes(x =  cut(app$income,c(-Inf,2792,3133, 5000,Inf),labels = c('[-Inf, 2792]','[2792,3133]','[3133,5000]','[5000,Inf]'))
                , y = amount)) +
@@ -99,11 +111,6 @@ glimpse(app1)
 table(app1$installments)
 aggregate(bad ~ installments, data = app1, mean)
 
-#employment - self - emplyed has higer prob to default
-table(app1$employment)
-aggregate(bad ~ employment, data = app1, mean)
-
-
 
 #to be sure that dates are between 2011-2012
 summary(app1$date)
@@ -127,45 +134,37 @@ glimpse(cb)
 (null_count <- sapply(cb, function(x) sum(is.null(x))))
 
 hist(cb$debt)
+boxplot(cb$debt)
+summary(cb$debt)
 
 #we can see that distribution of mortgage is not balanced
 hist(cb$mortgage)
-#median is 0 -> half of clients has mortgage less or equal than 0, but according to box plot only 1 outlier
-#->we can split this column into 3 classes according to median, 3rd quantile and max
-summary(cb$mortgage)
 boxplot(cb$mortgage)
+summary(cb$mortgage)
 
-#median of overdue is 0 -> half of clients has overdue less or equal than 0 days. Max is 83.
-#->we can split this column into 3 classes according to median, 3rd quantile and max
 summary(cb$overdue)
 hist(cb$overdue)
-table(cb)
 boxplot(cb$overdue)
 
-ovd <- df <- mutate(cb, overdue = cut(cb$overdue, c(-Inf, 0,40,Inf)))
-table(ovd$overdue)
-
-glimpse(cb) #5,616 rows
 
 # ------ merging APP and CB ------
 
 df<-left_join(app2, cb, by = "id")
 glimpse(df)
 
-#vidimo da ima 4,382 reda gde su debt, mortgage i overdue NA
+#4,382 NA
 (na_count <- sapply(df, function(x) sum(is.na(x))))
 
 na_values<-filter(df, is.na(debt))
-#medju NA vrednostima nema mnogo njih gde je bad=1
+#not much with bad=1
 table(na_values$bad)
-
-
 
 #we will replace NA values with 0 since there is no much bad=1 among them
 
 df <-mutate(df, overdue = ifelse(is.na(df$overdue),0,df$overdue))
-df <- mutate(df, overdue_1 = is.factor(ifelse(overdue<=25,1,0)))
-
+df <- mutate(df, overdue_1 = cut(df$overdue, c(-Inf, 0,40,Inf)))
+aggregate(bad ~ overdue_1, data = df, mean)
+table(df$overdue_1)
 
 df <-mutate(df, debt_1 = ifelse(is.na(df$debt),0,df$debt))
 df <-mutate(df, mortgage_1 = ifelse(is.na(df$mortgage),0,df$mortgage))
@@ -176,53 +175,44 @@ glimpse(df)
 install.packages("corpcor")
 library(corpcor)
 cor2pcor(cov(cb))#->correlation between dept and mortgage -> we will exclude mortgage
-df1<-select(df, c("-mortgage_1", "mortgage"))
-cb1<-select(cb, -mortgage)
+cb1<-select(cb,  -mortgage)
+
 cor2pcor(cov(cb1)) #->ok
 
-test1<-select(df,amount, income,age,installments,debt_1, overdue_1, children)
+#->excluding mortgage from df
+df1<-select(df,  -mortgage)
+
+
+test1<-select(df1,amount, income,age,installments,debt_1, children, overdue)
 cor2pcor(cov(test1))
 
-#to exclude age, income, installments
+#to exclude  income, installments
 
-df2<-select(df, c(-age,-income,-installments))
-test2<-select(df2,amount,debt_1, overdue)
+df2<-select(df1, c(-income,-installments))
+test2<-select(df2,amount,debt_1,children,age )
 cor2pcor(cov(test2))
 
-#sex, family, rent (TRUE, FALES -> 1,0), education, employment are categorical variables -> we will do transformation accordingly
-df2<-mutate(df2, sexMale = as.factor(ifelse(sex == 'male' ,1,0)))
 
-df2$rent_1 <-as.factor(ifelse(df2$rent, 1, 0))
-df2$education <-as.factor(df2$education)
-
-df2<-mutate(df2, divorced_single = as.factor(ifelse(family == 'divorced' |family == 'single' ,1,0)))
-df2<-mutate(df2, self_empl = as.factor(ifelse(employment == 'self-employed',1,0)))
 
 # ------ test and train sample (divide by year) ------
 install.packages("lubridate")
 library(lubridate)
 train <-filter(df2, year(date)==2011)
 test <-filter(df2, year(date)==2012)
-glimpse(train) #5,444
+glimpse(train) #5009
 glimpse(test) #4984
 
 
 
 # ------ create model ------
-train_model<-glm(bad ~ sexMale + divorced_single + children + self_empl + rent_1 + debt_1 + overdue_1  + amount + education
+train_model<-glm(bad ~ sexMale + divorced_single + children + self_empl + rent_1 + debt_1 + overdue_1  + amount + education +age
                  , family=binomial
                  , data=train)
 
 summary(train_model)
 
-install.packages("car")
-library(car)
-vif(train_model)
 
-summary(train_model)
-
-
-train_model1<-glm(bad ~ sexMale + divorced_single + children + self_empl + rent_1 + debt_1 + overdue_1, family=binomial
+train_model1<-glm(bad ~   divorced_single + children + self_empl + rent_1 + debt_1 + overdue_1, family=binomial
                   , data=train)
 summary(train_model1)
 
@@ -233,55 +223,35 @@ library(modelr)
 
 #add column with predictions
 
-train <- mutate(train, p = predict(train_model1, type = "response"))
-p_class <-cut(train$p, 5)
-table(p_class)
-mean(train$p)
+train_lr <- mutate(train, p = predict(train_model1, type = "response"))
+mean(train_lr$p)
+summary(train_lr$p)
+table(train_lr$bad)
+
+train_lr$p_class <-cut(train_lr$p, 5)
 
 
-summary(train$p) #0.013519 0.022961
-train <- mutate(train, bad_predicted = ifelse(p<=0.03,0,1))
-table(train$bad_predicted)
-
-table(train$bad)
-
-# Calculate the model's accuracy
-mean(train$bad == train$bad_predicted)
-
+merge(aggregate(bad ~ p_class, data = train_lr,function(x) c(length = length(x), sum = sum(x)))
+      ,aggregate(p ~ p_class, data = train_lr, mean))
 
 ############# Model performance tradeoffs #####################
 
-# Load the pROC package
-install.packages("pROC")
-library(pROC)
+#threshold
+train_lr <- mutate(train_lr, bad_predicted = ifelse(p<=0.04,0,1))
 
-# Create a ROC curve
-ROC <- roc(train$bad, train$p)
+# Calculate the model's accuracy
+mean(train_lr$bad == train_lr$bad_predicted)
+table(ifelse(train_lr$bad==1,'Default True','Default False'), train_lr$bad_predicted)
+# Sensitivity 0.4655172 - TruePositive / (TruePositive + FalseNegative)
+54/(62+54)
 
-# Plot the ROC curve
-plot(ROC, col = "blue")
+#Specificity 0.8612303 - TrueNegative / (FalsePositive + TrueNegative)
+4214/(4214+679)
 
-# Calculate the area under the curve (AUC)
-auc(ROC)
-
-#########
-table(test$bad)
-glimpse(train)
-train <- mutate(train, bad = as.numeric(bad))
-table(train$bad, train_model1 > 0.5)
-
-aggregate(p ~ bad , data = train, mean)
-
-table(ifelse(train$bad==1,'Defaul True','Default False'), train$bad_predicted)
-# Sensitivity
-79/(49+76)
-
-#Specificity
-4169/(4169+1150)
 
 install.packages("ROCR")
 library(ROCR)
-ROCRpred = prediction(train$p, train$bad)
+ROCRpred = prediction(train_lr$p, train_lr$bad)
 ROCRperf = performance(ROCRpred, "tpr", "fpr")
 
 plot(ROCRperf)
@@ -290,38 +260,43 @@ plot(ROCRperf, colorize=TRUE)
 # Add threshold labels
 plot(ROCRperf, colorize=TRUE, print.cutoffs.at=seq(0.01,0.09,by=0.01), text.adj=c(-0.2,1.7))
 
-#Sensitivity = TruePositive / (TruePositive + FalseNegative)
-#Specificity = TrueNegative / (FalsePositive + TrueNegative)
-#Where:
 
-#Sensitivity = True Positive Rate
-#Specificity = 1 ? False Positive Rate
-
-train$class <- cut(train$p, c(0.005, 0.01, 0.02, 0.05, 0.1, 1))
-
-aggregate(bad ~ class, data = train, function(x) c(length = length(x), sum = sum(x)))
-
-######## test model ########
-test<-mutate(test, married = as.factor(ifelse(family == 'married',1,0)))
-test<-mutate(test, self_empl = as.factor(ifelse(employment == 'self-employed',1,0)))
-test<-mutate(test, overdue_40 = as.factor(ifelse(overdue_1 == '(40, Inf]',1,0)))
-
-test <- mutate(test, p = predict(train_model1, type = "response",newdata = test))
-test$p <- predict(train_model1, type = "response", newdata = test)
-
-p_class_test <-cut(test$p, 5)
-table(p_class_test)
-mean(test$p)
-
-
-summary(test$p) #0.013519 0.022961
-test <- mutate(test, bad_predicted = ifelse(p<=0.03,0,1))
-table(test$bad_predicted)
-
-table(test$bad)
+#new threshold
+train_lr1 <- mutate(train_lr, bad_predicted = ifelse(p<=0.02,0,1))
 
 # Calculate the model's accuracy
-mean(test$bad == test$bad_predicted) #0.7879213
+mean(train_lr1$bad == train_lr1$bad_predicted) # 0.6013857
+table(ifelse(train_lr1$bad==1,'Default True','Default False'), train_lr1$bad_predicted)
+# Sensitivity 0.7672414 - TruePositive / (TruePositive + FalseNegative)
+89/(27   +89)
+
+#Specificity 0.620887 - TrueNegative / (FalsePositive + TrueNegative)
+3038 /(3038 +1855)
+
+
+
+######## test model ########
+test_lr <- mutate(test, p = predict(train_model1, type = "response",newdata = test))
+test_lr$p <- predict(train_model1, type = "response", newdata = test)
+summary(test_lr$p)
+summary(test_lr$p)
+
+p_class_test <-cut(test_lr$p, 5)
+merge(aggregate(bad ~ p_class_test, data = test_lr,function(x) c(length = length(x), sum = sum(x)))
+      ,aggregate(p ~ p_class_test, data = test_lr, mean))
+
+
+test_lr <- mutate(test_lr, bad_predicted = ifelse(p<=0.02,0,1))
+# Calculate the model's accuracy
+mean(test_lr$bad == test_lr$bad_predicted) #0.635634
+table(ifelse(test_lr$bad==1,'Default True','Default False'), test_lr$bad_predicted)
+
+# Sensitivity 0.7769784 - TruePositive / (TruePositive + FalseNegative)
+108/(31+108)
+
+#Specificity 0.6315789 - TrueNegative / (FalsePositive + TrueNegative)
+3060  /(3060 +1785)
+
 
 ####################################################################33
 
@@ -329,25 +304,26 @@ mean(test$bad == test$bad_predicted) #0.7879213
 install.packages("randomForest")
 library(randomForest)
 
-train1<-mutate(train, bad=as.factor(bad))
-train2<-mutate(df, bad=as.factor(bad))
-model_rf <- randomForest(bad ~ sex + married + children +rent + debt_1 + overdue_40 +self_empl , data = train1, importance = TRUE)
-summary(model_rf)
-varImpPlot(model_rf)
-Imp(model_rf)
+train_rf<-mutate(train, bad=as.factor(bad))
+test_rf<-mutate(test, bad=as.factor(bad))
 
-train_rf<-mutate(train1, p1 = predict(model_rf, train1,type = "class"))
+model_rf <- randomForest(bad ~ sexMale + divorced_single + children + self_empl + rent_1 + debt_1 + overdue_1  + amount + education +age,data=train_rf, importance = TRUE)
+model_rf
 
-predict<-predict(model_rf,train1,type = "class")
+train_rf<-mutate(train_rf, p1 = predict(model_rf, train_rf,type = "class"))
 
-table(train_rf$p1, train_rf$bad)
+table(ifelse(train_rf$bad==1,'Default True','Default False'), train_rf$p1)
+mean(train_rf$bad == train_rf$p1) #0.9960072
 
-mean(train_rf$bad == train_rf$p1)
+# Sensitivity  - TruePositive / (TruePositive + FalseNegative)
+96/(20 +96) #0.8275862
+
+#Specificity  - TrueNegative / (FalsePositive + TrueNegative)
+4893/(4893)
 
 
 #rf for test data
+test_rf<-mutate(test_rf, p1 = predict(model_rf, test_rf,type = "class"))
+mean(test_rf$bad==test_rf$p1) #0.9721108
+table(ifelse(test_rf$bad==1,'Default True','Default False'), test_rf$p1)
 
-test <- mutate(test, prf = predict(model_rf    , type = "response",newdata = test))
-
-
-mean(test$bad==test$prf)
